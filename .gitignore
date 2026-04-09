@@ -7,3 +7,5 @@ out/
 .settings
 bin/
 .myeclipse
+node_modules/
+dist/
