@@ -22,6 +22,16 @@ public class AiChatRequest {
      */
     private String currentCode;
 
+    /**
+     * 指定使用的提供商（由前端传入）
+     */
+    private String provider;
+
+    /**
+     * 指定使用的模型（由前端传入）
+     */
+    private String model;
+
     public String getMessage() {
         return message;
     }
@@ -44,5 +54,21 @@ public class AiChatRequest {
 
     public void setCurrentCode(String currentCode) {
         this.currentCode = currentCode;
+    }
+
+    public String getProvider() {
+        return provider;
+    }
+
+    public void setProvider(String provider) {
+        this.provider = provider;
+    }
+
+    public String getModel() {
+        return model;
+    }
+
+    public void setModel(String model) {
+        this.model = model;
     }
 }

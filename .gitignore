@@ -9,3 +9,6 @@ bin/
 .myeclipse
 node_modules/
 dist/
+.gitnexus
+/.claude/skills
+

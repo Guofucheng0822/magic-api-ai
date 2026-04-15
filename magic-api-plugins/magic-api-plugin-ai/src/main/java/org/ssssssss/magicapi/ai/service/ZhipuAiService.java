@@ -15,7 +15,14 @@ import org.ssssssss.magicapi.ai.model.AiChatMessage;
 import org.ssssssss.magicapi.ai.model.AiChatRequest;
 import org.ssssssss.magicapi.ai.model.AiChatResponse;
 
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.function.Consumer;
 
 /**
  * 智谱AI（GLM）服务实现
@@ -37,40 +44,37 @@ public class ZhipuAiService implements AiService {
         this.restTemplate = new RestTemplate();
     }
 
+    private ArrayNode buildMessages(AiChatRequest request) {
+        ArrayNode messages = objectMapper.createArrayNode();
+        ObjectNode systemMsg = messages.addObject();
+        systemMsg.put("role", "system");
+        systemMsg.put("content", buildSystemPrompt(request.getMessage()));
+        if (request.getCurrentCode() != null && !request.getCurrentCode().trim().isEmpty()) {
+            ObjectNode codeContextMsg = messages.addObject();
+            codeContextMsg.put("role", "system");
+            codeContextMsg.put("content", "当前编辑器中的代码：\n```magicscript\n" + request.getCurrentCode() + "\n```\n请在回答时结合以上代码上下文。");
+        }
+        List<AiChatMessage> history = request.getHistory();
+        if (history != null) {
+            for (AiChatMessage msg : history) {
+                ObjectNode historyMsg = messages.addObject();
+                historyMsg.put("role", msg.getRole());
+                historyMsg.put("content", msg.getContent());
+            }
+        }
+        ObjectNode userMsg = messages.addObject();
+        userMsg.put("role", "user");
+        userMsg.put("content", request.getMessage());
+        return messages;
+    }
+
     @Override
     public AiChatResponse chat(AiChatRequest request) {
         try {
             ObjectNode requestBody = objectMapper.createObjectNode();
             requestBody.put("model", model);
-
-            ArrayNode messages = requestBody.putArray("messages");
-
-            // 系统提示词
-            ObjectNode systemMsg = messages.addObject();
-            systemMsg.put("role", "system");
-            systemMsg.put("content", buildSystemPrompt());
-
-            // 代码上下文
-            if (request.getCurrentCode() != null && !request.getCurrentCode().trim().isEmpty()) {
-                ObjectNode codeContextMsg = messages.addObject();
-                codeContextMsg.put("role", "system");
-                codeContextMsg.put("content", "当前编辑器中的代码：\n```magicscript\n" + request.getCurrentCode() + "\n```\n请在回答时结合以上代码上下文。");
-            }
-
-            // 历史消息
-            List<AiChatMessage> history = request.getHistory();
-            if (history != null) {
-                for (AiChatMessage msg : history) {
-                    ObjectNode historyMsg = messages.addObject();
-                    historyMsg.put("role", msg.getRole());
-                    historyMsg.put("content", msg.getContent());
-                }
-            }
-
-            // 当前用户消息
-            ObjectNode userMsg = messages.addObject();
-            userMsg.put("role", "user");
-            userMsg.put("content", request.getMessage());
+            requestBody.put("stream", false);
+            requestBody.set("messages", buildMessages(request));
 
             String jsonBody = objectMapper.writeValueAsString(requestBody);
 
@@ -100,6 +104,51 @@ public class ZhipuAiService implements AiService {
         } catch (Exception e) {
             logger.error("智谱AI服务调用异常", e);
             return new AiChatResponse("AI服务调用异常: " + e.getMessage());
+        }
+    }
+
+    @Override
+    public void chatStream(AiChatRequest request, Consumer<String> onToken) {
+        try {
+            ObjectNode requestBody = objectMapper.createObjectNode();
+            requestBody.put("model", model);
+            requestBody.put("stream", true);
+            requestBody.set("messages", buildMessages(request));
+
+            String jsonBody = objectMapper.writeValueAsString(requestBody);
+
+            HttpURLConnection conn = (HttpURLConnection) new URL(apiUrl).openConnection();
+            conn.setRequestMethod("POST");
+            conn.setDoOutput(true);
+            conn.setRequestProperty("Content-Type", "application/json");
+            conn.setRequestProperty("Authorization", "Bearer " + apiKey);
+            conn.setRequestProperty("Accept", "text/event-stream");
+
+            try (OutputStream os = conn.getOutputStream()) {
+                os.write(jsonBody.getBytes(StandardCharsets.UTF_8));
+            }
+
+            try (BufferedReader reader = new BufferedReader(
+                    new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    if (line.startsWith("data: ")) {
+                        String data = line.substring(6).trim();
+                        if ("[DONE]".equals(data)) {
+                            break;
+                        }
+                        JsonNode chunk = objectMapper.readTree(data);
+                        String content = chunk.path("choices").path(0)
+                                .path("delta").path("content").asText(null);
+                        if (content != null) {
+                            onToken.accept(content);
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            logger.error("智谱AI流式调用异常", e);
+            onToken.accept("\n\nAI服务流式调用异常: " + e.getMessage());
         }
     }
 }

@@ -15,6 +15,9 @@ export default {
         copy: 'Copy Code',
         copySuccess: 'Code copied to clipboard',
         user: 'Me',
-        assistant: 'AI'
+        assistant: 'AI',
+        provider: 'Provider',
+        model: 'Model',
+        switchFailed: 'Failed to switch model, please check configuration'
     }
 }

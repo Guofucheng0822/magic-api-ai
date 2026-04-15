@@ -15,6 +15,9 @@ export default {
         copy: '复制代码',
         copySuccess: '代码已复制到剪贴板',
         user: '我',
-        assistant: 'AI'
+        assistant: 'AI',
+        provider: '提供商',
+        model: '模型',
+        switchFailed: '切换模型失败，请检查配置'
     }
 }

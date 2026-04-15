@@ -6,7 +6,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.ssssssss.magicapi.ai.service.*;
+import org.ssssssss.magicapi.ai.service.AiServiceManager;
 import org.ssssssss.magicapi.ai.web.MagicAiController;
 import org.ssssssss.magicapi.core.config.MagicConfiguration;
 import org.ssssssss.magicapi.core.config.MagicPluginConfiguration;
@@ -27,38 +27,17 @@ public class MagicAiConfiguration implements MagicPluginConfiguration {
 
     public MagicAiConfiguration(MagicAiProperties properties) {
         this.properties = properties;
-        logger.info("Magic AI Coding 模块已启用，提供商: {}", properties.getProvider());
+        logger.info("Magic AI Coding 模块已启用");
     }
 
     @Bean
-    public AiService aiService() {
-        String provider = properties.getProvider();
-        String apiUrl = properties.getApiUrl();
-        String apiKey = properties.getApiKey();
-        String model = properties.getModel();
-
-        logger.info("初始化AI服务，提供商: {}, 模型: {}", provider, model);
-
-        switch (provider.toLowerCase()) {
-            case "dashscope":
-            case "aliyun":
-                return new DashScopeService(apiUrl, apiKey, model);
-            case "zhipu":
-            case "glm":
-                return new ZhipuAiService(apiUrl, apiKey, model);
-            case "minimax":
-                return new MiniMaxService(apiUrl, apiKey, model);
-            case "deepseek":
-                return new DeepSeekService(apiUrl, apiKey, model);
-            case "openai":
-            default:
-                return new OpenAiService(apiUrl, apiKey, model);
-        }
+    public AiServiceManager aiServiceManager() {
+        return new AiServiceManager(properties);
     }
 
     @Bean
-    public MagicAiController magicAiController(MagicConfiguration configuration, AiService aiService) {
-        return new MagicAiController(configuration, aiService);
+    public MagicAiController magicAiController(MagicConfiguration configuration, AiServiceManager aiServiceManager) {
+        return new MagicAiController(configuration, aiServiceManager);
     }
 
     @Override
@@ -69,7 +48,7 @@ public class MagicAiConfiguration implements MagicPluginConfiguration {
     @Override
     public MagicControllerRegister controllerRegister() {
         return (mapping, configuration) -> {
-            MagicAiController controller = magicAiController(configuration, aiService());
+            MagicAiController controller = magicAiController(configuration, aiServiceManager());
             mapping.registerController(controller);
             logger.info("AI Coding 控制器已注册");
         };
