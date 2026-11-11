@@ -1,0 +1,17 @@
+{
+  "name": "magic-ai",
+  "version": "1.0.0",
+  "description": "Magic-API AI chat plugin",
+  "main": "index.js",
+  "scripts": {
+    "build": "vite build"
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "vue": "^3.2.31",
+    "@vitejs/plugin-vue": "^2.2.4",
+    "vite-plugin-svg-icons": "^1.1.0",
+    "vite": "^2.8.6"
+  }
+}
