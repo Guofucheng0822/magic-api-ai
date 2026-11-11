@@ -2,7 +2,7 @@
     <img src="https://www.ssssssss.org/images/logo-magic-api.png" width="256">
 </p>
 <p align="center">
-    <a target="_blank" href="https://www.oracle.com/technetwork/java/javase/downloads/index.html"><img src="https://img.shields.io/badge/JDK-1.8+-green.svg" /></a>
+    <a target="_blank" href="https://www.oracle.com/technetwork/java/javase/downloads/index.html"><img src="https://img.shields.io/badge/JDK-17%20%E2%80%93%2021-green.svg" /></a>
     <a href="https://search.maven.org/search?q=g:org.ssssssss%20AND%20a:magic-api">
         <img alt="maven" src="https://img.shields.io/maven-central/v/org.ssssssss/magic-api.svg?style=flat-square">
     </a>
@@ -42,6 +42,24 @@ magic-api 是一个基于Java的接口快速开发框架，编写接口将通过
 - 支持导入Spring中的Bean、Java中的类
 - 支持在线调试
 - 支持自定义工具类、自定义模块包、自定义类型扩展、自定义方言、自定义列名转换等自定义操作
+
+# 环境要求
+
+- **JDK**：17、18、19、20 或 21（推荐 17 LTS 或 21 LTS）
+- **Maven**：3.6.3+
+- 字节码以 `--release 17` 编译；完整 reactor（含 `magic-api-servlet-jakarta`、`magic-api-plugin-springdoc`）需要 JDK 17+
+
+本地构建与校验：
+
+```bash
+# 使用 JDK 17–21
+mvn -DskipTests package
+
+# 或干净构建
+mvn -DskipTests clean package
+```
+
+更多说明见 [BUILD.md](BUILD.md)。
 
 # 快速开始
 
