@@ -67,6 +67,31 @@ magic-api.resource.location=/data/magic-api
 ## 在线编辑
 访问`http://localhost:9999/magic/web`进行操作
 
+## AI 对话生成接口（可选插件）
+
+引入 `magic-api-plugin-ai` 后，可在编辑器底部 **AI 助手** 中用自然语言生成 Magic-API 接口，并支持在线测试与一键发布。
+
+默认对接阿里云百炼 **DashScope / 通义千问（Qwen）** 的 OpenAI 兼容接口：
+
+```xml
+<dependency>
+    <groupId>org.ssssssss</groupId>
+    <artifactId>magic-api-plugin-ai</artifactId>
+    <version>2.2.2</version>
+</dependency>
+```
+
+```yaml
+magic-api:
+  ai:
+    enable: true
+    base-url: https://dashscope.aliyuncs.com/compatible-mode/v1
+    api-key: ${MAGIC_API_AI_API_KEY:}
+    model: qwen-plus
+```
+
+详细配置与验证步骤见 [`magic-api-plugins/magic-api-plugin-ai/README.md`](magic-api-plugins/magic-api-plugin-ai/README.md)。
+
 # 文档/演示
 
 - 文档地址：[https://ssssssss.org](https://ssssssss.org)
