@@ -23,6 +23,11 @@ public class AIGeneratedApi {
 
 	private String responseBody;
 
+	/**
+	 * 新建接口要放入的分组名称。仅在和分组操作一起确认时使用。
+	 */
+	private String groupName;
+
 	private List<Map<String, Object>> parameters = new ArrayList<>();
 
 	private List<Map<String, Object>> headers = new ArrayList<>();
@@ -83,6 +88,14 @@ public class AIGeneratedApi {
 
 	public void setResponseBody(String responseBody) {
 		this.responseBody = responseBody;
+	}
+
+	public String getGroupName() {
+		return groupName;
+	}
+
+	public void setGroupName(String groupName) {
+		this.groupName = groupName;
 	}
 
 	public List<Map<String, Object>> getParameters() {

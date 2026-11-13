@@ -2,6 +2,7 @@ import { defineComponent, h, provide } from 'vue'
 import localZhCN from './i18n/zh-cn.js'
 import localEn from './i18n/en.js'
 import MagicAIChat from './components/magic-ai-chat.vue'
+import MagicSchema from './service/magic-schema.js'
 import 'vite-plugin-svg-icons/register'
 
 function wrapChat(opt) {
@@ -23,6 +24,12 @@ export default (opt) => {
     i18n.add('zh-cn', localZhCN)
     i18n.add('en', localEn)
     return {
+        resource: [{
+            type: 'schema',
+            icon: 'datasource',
+            title: 'schema.name',
+            service: MagicSchema(opt.bus, opt.constants, opt.i18n.format, opt.Message, opt.request)
+        }],
         // type 省略 => 始终显示在底部工具条
         toolbars: [{
             id: 'magic-ai-chat',

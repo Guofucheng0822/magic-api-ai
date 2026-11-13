@@ -75,8 +75,8 @@ public class OpenAICompatibleClient {
 					new HttpEntity<>(body.toJSONString(), headers),
 					String.class
 			);
-			if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
-				throw new IllegalStateException("LLM 调用失败: HTTP " + response.getStatusCodeValue());
+			if (response.getBody() == null) {
+				throw new IllegalStateException("LLM 调用失败: 空响应");
 			}
 			return extractContent(response.getBody());
 		} catch (RestClientException e) {

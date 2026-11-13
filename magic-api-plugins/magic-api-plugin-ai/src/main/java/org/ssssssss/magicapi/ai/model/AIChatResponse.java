@@ -2,6 +2,8 @@ package org.ssssssss.magicapi.ai.model;
 
 import org.ssssssss.magicapi.core.model.ApiInfo;
 
+import java.util.List;
+
 /**
  * AI 对话响应
  */
@@ -31,6 +33,16 @@ public class AIChatResponse {
 	 * 原始 LLM 文本（便于排查）
 	 */
 	private String raw;
+
+	/**
+	 * 目标接口已锁定，本次未写入
+	 */
+	private boolean locked;
+
+	/**
+	 * 待用户确认的控制台操作，例如创建分组
+	 */
+	private List<AIConsoleAction> actions;
 
 	public String getReply() {
 		return reply;
@@ -70,5 +82,21 @@ public class AIChatResponse {
 
 	public void setRaw(String raw) {
 		this.raw = raw;
+	}
+
+	public boolean isLocked() {
+		return locked;
+	}
+
+	public void setLocked(boolean locked) {
+		this.locked = locked;
+	}
+
+	public List<AIConsoleAction> getActions() {
+		return actions;
+	}
+
+	public void setActions(List<AIConsoleAction> actions) {
+		this.actions = actions;
 	}
 }

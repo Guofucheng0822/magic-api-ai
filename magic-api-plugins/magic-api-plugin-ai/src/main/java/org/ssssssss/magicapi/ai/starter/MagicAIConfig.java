@@ -50,6 +50,21 @@ public class MagicAIConfig {
 	 */
 	private String systemPrompt;
 
+	/**
+	 * 是否把当前数据源的表结构放进系统提示词
+	 */
+	private boolean schemaEnable = true;
+
+	/**
+	 * 表结构缓存秒数
+	 */
+	private int schemaCacheSeconds = 600;
+
+	/**
+	 * 表结构提示词最大字符数
+	 */
+	private int schemaMaxChars = 24000;
+
 	public boolean isEnable() {
 		return enable;
 	}
@@ -112,5 +127,29 @@ public class MagicAIConfig {
 
 	public void setSystemPrompt(String systemPrompt) {
 		this.systemPrompt = systemPrompt;
+	}
+
+	public boolean isSchemaEnable() {
+		return schemaEnable;
+	}
+
+	public void setSchemaEnable(boolean schemaEnable) {
+		this.schemaEnable = schemaEnable;
+	}
+
+	public int getSchemaCacheSeconds() {
+		return schemaCacheSeconds;
+	}
+
+	public void setSchemaCacheSeconds(int schemaCacheSeconds) {
+		this.schemaCacheSeconds = schemaCacheSeconds;
+	}
+
+	public int getSchemaMaxChars() {
+		return schemaMaxChars;
+	}
+
+	public void setSchemaMaxChars(int schemaMaxChars) {
+		this.schemaMaxChars = schemaMaxChars;
 	}
 }
