@@ -13,12 +13,13 @@
     <a target="_blank" href="LICENSE"><img src="https://img.shields.io/:license-MIT-blue.svg"></a>
 </p>
 
-[特性](#特性) | [快速开始](#快速开始) | [文档/演示](#文档演示) | [示例项目](#示例项目) | <a target="_blank" href="http://ssssssss.org/changelog.html">更新日志</a> | [项目截图](#项目截图) | [交流群](#交流群)
+[特性](#特性) | [环境要求 / 构建](#环境要求--构建) | [快速开始](#快速开始) | [AI 助手](#ai-助手可选插件) | [使用指南](docs/使用指南.md) | [文档/演示](#文档演示) | [示例项目](#示例项目) | <a target="_blank" href="http://ssssssss.org/changelog.html">更新日志</a> | [项目截图](#项目截图) | [交流群](#交流群)
 
 # 简介
 
 magic-api 是一个基于Java的接口快速开发框架，编写接口将通过magic-api提供的UI界面完成，自动映射为HTTP接口，无需定义Controller、Service、Dao、Mapper、XML、VO等Java对象即可完成常见的HTTP API接口开发
 
+本仓库是 [ssssssss-team/magic-api](https://github.com/ssssssss-team/magic-api) 的二次开发 fork：在保留上游能力的基础上，支持 **JDK 17–21** 构建/运行，并提供可选插件 `magic-api-plugin-ai`，可在控制台通过 **AI 对话生成接口**、在线测试与一键发布（锁定）。详细操作见 [docs/使用指南.md](docs/使用指南.md)。
 
 【已有上千家中小型公司使用，上万名开发者用于接口配置开发。上百名开发者参与提交了功能建议，接近20多名贡献者参与。已被gitee长期推荐。从首个版本开始不断优化升级，目前版本稳定，开发者交流群活跃。参与交流QQ群④700818216】
 
@@ -42,24 +43,23 @@ magic-api 是一个基于Java的接口快速开发框架，编写接口将通过
 - 支持导入Spring中的Bean、Java中的类
 - 支持在线调试
 - 支持自定义工具类、自定义模块包、自定义类型扩展、自定义方言、自定义列名转换等自定义操作
+- **本 fork**：工具链支持 **JDK 17–21**（字节码 `--release 17`）
+- **本 fork**：可选 AI 助手 — 对话生成接口、在线测试、一键发布（资源锁定）
 
-# 环境要求
+# 环境要求 / 构建
 
 - **JDK**：17、18、19、20 或 21（推荐 17 LTS 或 21 LTS）
 - **Maven**：3.6.3+
 - 字节码以 `--release 17` 编译；完整 reactor（含 `magic-api-servlet-jakarta`、`magic-api-plugin-springdoc`）需要 JDK 17+
 
-本地构建与校验：
+二次开发将产物安装到本地 Maven 仓库：
 
 ```bash
-# 使用 JDK 17–21
-mvn -DskipTests package
-
-# 或干净构建
-mvn -DskipTests clean package
+# 使用 JDK 17+
+mvn clean install -DskipTests
 ```
 
-更多说明见 [BUILD.md](BUILD.md)。
+更多构建说明见 [BUILD.md](BUILD.md)；接入 AI 助手与宿主配置见 [docs/使用指南.md](docs/使用指南.md)。
 
 # 快速开始
 
@@ -68,8 +68,8 @@ mvn -DskipTests clean package
 <!-- 以spring-boot-starter的方式引用 -->
 <dependency>
 	<groupId>org.ssssssss</groupId>
-    <artifactId>magic-api-spring-boot-starter</artifactId>
-    <version>2.2.2</version>
+	<artifactId>magic-api-spring-boot-starter</artifactId>
+	<version>2.2.2</version>
 </dependency>
 ```
 ## 修改application.properties
@@ -85,33 +85,43 @@ magic-api.resource.location=/data/magic-api
 ## 在线编辑
 访问`http://localhost:9999/magic/web`进行操作
 
-## AI 对话生成接口（可选插件）
+## AI 助手（可选插件）
 
-引入 `magic-api-plugin-ai` 后，可在编辑器底部 **AI 助手** 中用自然语言生成 Magic-API 接口，并支持在线测试与一键发布。
+引入 `magic-api-plugin-ai` 后，可在控制台底部工具条打开 **AI 助手**，用自然语言生成 Magic-API 接口，并支持**在线测试**与**一键发布（锁定）**。
 
-默认对接阿里云百炼 **DashScope / 通义千问（Qwen）** 的 OpenAI 兼容接口：
+默认推荐对接阿里云百炼 **DashScope / 通义千问（Qwen）**：
 
 ```xml
+<!-- 可选：本 fork 的 AI 对话生成插件 -->
 <dependency>
-    <groupId>org.ssssssss</groupId>
-    <artifactId>magic-api-plugin-ai</artifactId>
-    <version>2.2.2</version>
+	<groupId>org.ssssssss</groupId>
+	<artifactId>magic-api-plugin-ai</artifactId>
+	<version>2.2.2</version>
 </dependency>
 ```
 
 ```yaml
 magic-api:
   ai:
-    enable: true
-    base-url: https://dashscope.aliyuncs.com/compatible-mode/v1
+    enabled: true
+    provider: dashscope
+    # 服务地址（DashScope / Qwen）；密钥用环境变量注入
+    api-url: https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation
     api-key: ${MAGIC_API_AI_API_KEY:}
     model: qwen-plus
 ```
 
-详细配置与验证步骤见 [`magic-api-plugins/magic-api-plugin-ai/README.md`](magic-api-plugins/magic-api-plugin-ai/README.md)。
+启动前设置环境变量（勿把 Key 写入仓库）：
+
+```bash
+export MAGIC_API_AI_API_KEY=sk-xxxxxxxx
+```
+
+> 属性名为 `enabled` / `api-url`（见插件 README）。操作流程、验证清单与故障排查见 **[docs/使用指南.md](docs/使用指南.md)**；模块细节见 [`magic-api-plugins/magic-api-plugin-ai/README.md`](magic-api-plugins/magic-api-plugin-ai/README.md)。
 
 # 文档/演示
 
+- 本 fork 使用指南（构建、AI 接入、验证）：[docs/使用指南.md](docs/使用指南.md)
 - 文档地址：[https://ssssssss.org](https://ssssssss.org)
 - 在线演示：[https://magic-api.ssssssss.org.cn](https://magic-api.ssssssss.org.cn)
 
@@ -132,4 +142,3 @@ magic-api:
 | ----- | --- |
 | <img src="https://www.ssssssss.org/magic-api/images/wxcode.png" alt="作者微信"> | <img src="https://www.ssssssss.org/magic-api/images/qq-group-qrcode.png" alt="QQ群"> |
 | 备注：加群，邀您加入群聊| <a href="https://qm.qq.com/cgi-bin/qm/qr?k=38qddUeqrk_x29Xril9a_jxnoCGTmPRF&jump_from=webapi" target="_blank">点击加入QQ群：700818216</a> |
-
