@@ -1,4 +1,5 @@
 package org.ssssssss.magicapi.utils;
+import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 
 public class ROT13Utils {
@@ -64,9 +65,8 @@ public class ROT13Utils {
      */
     public static String encode(String input) {
         // 将字符串转换为字节数组
-        byte[] encodedBytes = Base64.getEncoder().encode(input.getBytes());
-        // 转换回字符串并返回
-        return new String(encodedBytes);
+        byte[] encodedBytes = Base64.getEncoder().encode(input.getBytes(StandardCharsets.UTF_8));
+        return new String(encodedBytes, StandardCharsets.US_ASCII);
     }
 
     /**
@@ -77,8 +77,7 @@ public class ROT13Utils {
      */
     public static String decode(String encodedString) {
         // 将字符串转换为字节数组
-        byte[] decodedBytes = Base64.getDecoder().decode(encodedString.getBytes());
-        // 转换回字符串并返回
-        return new String(decodedBytes);
+        byte[] decodedBytes = Base64.getDecoder().decode(encodedString.getBytes(StandardCharsets.US_ASCII));
+        return new String(decodedBytes, StandardCharsets.UTF_8);
     }
 }

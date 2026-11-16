@@ -1,6 +1,7 @@
 <template>
-    <teleport to=".magic-editor">
-        <div v-if="visible" class="magic-ai-panel">
+    <teleport :to="popupHost || '.magic-editor'">
+        <div v-if="visible" class="magic-ai-panel" :class="{ 'magic-ai-panel--window': popupHost }" :style="panelStyle">
+            <div v-if="!popupHost" class="magic-ai-resize" @mousedown.prevent="startResize"></div>
             <div class="magic-ai-panel-header">
                 <div class="magic-ai-header-left">
                     <span class="magic-ai-header-icon">
@@ -11,9 +12,59 @@
                     </span>
                     <span class="magic-ai-header-title">AI Coding 助手</span>
                 </div>
-                <span class="magic-ai-close" @click="onClose">
-                    <magic-icon icon="close"/>
-                </span>
+                <div class="magic-ai-header-actions">
+                    <button class="magic-ai-header-btn" @click="newChat">新对话</button>
+                    <button class="magic-ai-header-btn" @click="showHistory = !showHistory">历史</button>
+                    <button class="magic-ai-header-btn" @click="diagnoseError">诊断</button>
+                    <button class="magic-ai-header-btn" @click="toggleWindow">{{ popupHost ? '收回' : '独立窗口' }}</button>
+                    <span class="magic-ai-close" @click="onClose">
+                        <magic-icon icon="close"/>
+                    </span>
+                </div>
+            </div>
+            <div v-if="createForm" class="magic-ai-create-mask">
+                <div class="magic-ai-create">
+                    <div class="magic-ai-create-title">新建接口</div>
+                    <label>名称</label>
+                    <input v-model="createForm.name" />
+                    <label>路径</label>
+                    <input v-model="createForm.path" />
+                    <label>方法</label>
+                    <select v-model="createForm.method">
+                        <option>GET</option>
+                        <option>POST</option>
+                        <option>PUT</option>
+                        <option>DELETE</option>
+                    </select>
+                    <label>参数</label>
+                    <input v-model="createForm.parameters" placeholder="多个参数用逗号分隔，例如 dnum" />
+                    <div class="magic-ai-create-hint">保存为本地新文件，不会覆盖当前打开的接口。脚本里的 #{参数} 会自动填到这里。</div>
+                    <div class="magic-ai-create-actions">
+                        <button type="button" class="magic-ai-create-save" @click="submitCreate" :disabled="createForm.saving">保存</button>
+                        <button type="button" class="magic-ai-create-cancel" @click="createForm = null">取消</button>
+                    </div>
+                </div>
+            </div>
+            <div v-if="showHistory" class="magic-ai-history" @scroll="historyMenu = null">
+                <div v-if="sessions.length === 0" class="magic-ai-history-empty">还没有历史会话</div>
+                <div v-for="session in sessions" :key="session.id" class="magic-ai-history-item" @contextmenu.prevent="openHistoryMenu($event, session)">
+                    <input
+                        v-if="editingId === session.id"
+                        ref="renameInput"
+                        class="magic-ai-history-input"
+                        v-model="editingTitle"
+                        maxlength="40"
+                        @click.stop
+                        @keydown.enter.prevent="saveTitle(session)"
+                        @keydown.esc.prevent="editingId = null"
+                        @blur="saveTitle(session)"
+                    />
+                    <button v-else type="button" class="magic-ai-history-title" @click="openSession(session)">{{ session.title }}</button>
+                </div>
+            </div>
+            <div v-if="historyMenu" class="magic-ai-history-menu" :style="{ left: historyMenu.x + 'px', top: historyMenu.y + 'px' }" @click.stop @contextmenu.prevent>
+                <button type="button" @click="renameFromMenu">修改名称</button>
+                <button type="button" class="magic-ai-history-menu-danger" @click="deleteFromMenu">删除</button>
             </div>
             <div class="magic-ai-container">
                 <!-- 对话消息区域 -->
@@ -59,14 +110,15 @@
                                     <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3a3.5 3.5 0 0 1 3.5 3.5V8A2.5 2.5 0 0 1 16 10.5V12a2 2 0 0 1-2 2h-.5L12 17H8l-1.5-3H6a2 2 0 0 1-2-2v-1.5A2.5 2.5 0 0 1 6.5 8v-1.5A3.5 3.5 0 0 1 10 3z"/><circle cx="8" cy="9" r="0.8" fill="currentColor"/><circle cx="12" cy="9" r="0.8" fill="currentColor"/></svg>
                                 </span>
                             </div>
-                            <div class="magic-ai-message-body">
+                            <div :class="['magic-ai-message-body', msg.queryResult ? 'magic-ai-message-body--result' : '']">
                                 <div class="magic-ai-message-content">
                                     <div v-if="msg.role === 'assistant'" v-html="renderMarkdown(msg.content)"></div>
                                     <div v-else>{{ msg.content }}</div>
                                     <span v-if="streaming && msg.role === 'assistant' && index === messages.length - 1" class="magic-ai-cursor">▍</span>
                                 </div>
                                 <!-- 代码操作按钮 -->
-                                <div class="magic-ai-code-actions" v-if="msg.role === 'assistant' && !streaming && extractCode(msg.content)">
+                                <div class="magic-ai-code-actions" v-if="msg.role === 'assistant' && !streaming && (extractCode(msg.content) || isApiDoc(msg.content))">
+                                    <template v-if="extractCode(msg.content)">
                                     <button class="magic-ai-btn magic-ai-btn--insert" @click="insertCode(extractCode(msg.content))">
                                         <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 3v10M3 8h10"/></svg>
                                         插入代码
@@ -79,6 +131,44 @@
                                         <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="5" y="5" width="9" height="9" rx="1.5"/><path d="M5 11H3.5A1.5 1.5 0 0 1 2 9.5v-7A1.5 1.5 0 0 1 3.5 1h7A1.5 1.5 0 0 1 12 2.5V5"/></svg>
                                         复制
                                     </button>
+                                    <button class="magic-ai-btn magic-ai-btn--create" @click="createApi(extractCode(msg.content))">
+                                        新建接口
+                                    </button>
+                                    <button class="magic-ai-btn magic-ai-btn--run" @click="runQuery(msg, extractCode(msg.content))" :disabled="msg.querying">
+                                        执行查询
+                                    </button>
+                                    <button v-if="isReadQuery(extractCode(msg.content))" class="magic-ai-btn magic-ai-btn--copy" @click="exportQuery(msg, extractCode(msg.content))" :disabled="msg.exporting">
+                                        导出数据
+                                    </button>
+                                    </template>
+                                    <button v-if="isApiDoc(msg.content)" class="magic-ai-btn magic-ai-btn--copy" @click="exportDoc(msg.content)">
+                                        导出文档
+                                    </button>
+                                </div>
+                                <div v-if="msg.querying" class="magic-ai-query-status">正在查询...</div>
+                                <div v-if="msg.exporting" class="magic-ai-query-status">正在导出...</div>
+                                <div v-if="msg.queryError" class="magic-ai-query-status">{{ msg.queryError }}</div>
+                                <div v-if="msg.exportError" class="magic-ai-query-status">{{ msg.exportError }}</div>
+                                <div v-if="msg.queryResult" class="magic-ai-query-result">
+                                    <div v-for="(section, sectionIndex) in querySections(msg.queryResult)" :key="sectionIndex" class="magic-ai-query-section">
+                                        <div v-if="sectionKind(section) === 'empty'" class="magic-ai-query-summary">{{ section.name || '结果' }}：没有数据</div>
+                                        <div v-else-if="sectionKind(section) === 'scalar'" class="magic-ai-query-summary">{{ section.name || '结果' }}：{{ section.rows[0][0] }}</div>
+                                        <template v-else>
+                                            <div class="magic-ai-query-summary">{{ section.name || '结果' }}：{{ section.total }} 条<span v-if="section.truncated">，这里显示前 {{ section.rows.length }} 条</span></div>
+                                            <div class="magic-ai-query-table-wrap">
+                                                <table>
+                                                    <thead>
+                                                        <tr><th v-for="col in section.columns" :key="col">{{ col }}</th></tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        <tr v-for="(row, rowIndex) in section.rows" :key="rowIndex">
+                                                            <td v-for="(cell, cellIndex) in row" :key="cellIndex" :title="cell">{{ cell }}</td>
+                                                        </tr>
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </template>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -100,6 +190,13 @@
                     </template>
                 </div>
 
+                <div v-if="lastError" class="magic-ai-run-error">
+                    <div class="magic-ai-run-error-text">{{ lastError.title || '运行日志' }}：{{ lastError.message }}</div>
+                    <div class="magic-ai-run-error-actions">
+                        <button type="button" @click="diagnoseError">诊断</button>
+                        <button type="button" @click="lastError = null">忽略</button>
+                    </div>
+                </div>
                 <!-- 输入区域 -->
                 <div class="magic-ai-input-area">
                     <!-- 模型选择器 -->
@@ -116,6 +213,10 @@
                             </select>
                             <svg class="magic-ai-select-arrow" viewBox="0 0 12 12" width="10" height="10"><path d="M3 5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
                         </div>
+                    </div>
+                    <div v-if="focusTable" class="magic-ai-focus">
+                        <span>下一句带上表 {{ focusTable }}</span>
+                        <button type="button" @click="focusTable = ''">取消</button>
                     </div>
                     <div class="magic-ai-input-toolbar">
                         <label class="magic-ai-context-toggle">
@@ -150,7 +251,7 @@
 </template>
 
 <script setup>
-import { ref, nextTick, computed } from 'vue'
+import { ref, nextTick, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 
 const props = defineProps({
     bus: Object,
@@ -158,8 +259,34 @@ const props = defineProps({
     modal: Object
 })
 
+const HISTORY_KEY = 'magic-ai-sessions'
+const CURRENT_KEY = 'magic-ai-current'
+const WIDTH_KEY = 'magic-ai-panel-width'
+
+const readJson = (key, fallback) => {
+    try {
+        const text = localStorage.getItem(key)
+        return text ? JSON.parse(text) : fallback
+    } catch (e) {
+        return fallback
+    }
+}
+
 const visible = ref(false)
-const messages = ref([])
+const panelWidth = ref(Number(localStorage.getItem(WIDTH_KEY)) || 420)
+const popupHost = ref(null)
+let popupWindow = null
+const lastError = ref(null)
+const recentSql = ref('')
+const focusTable = ref('')
+const createForm = ref(null)
+const messages = ref(readJson(CURRENT_KEY, []))
+const sessions = ref(readJson(HISTORY_KEY, []))
+const showHistory = ref(false)
+const editingId = ref(null)
+const editingTitle = ref('')
+const renameInput = ref(null)
+const historyMenu = ref(null)
 const inputText = ref('')
 const loading = ref(false)
 const streaming = ref(false)  // 流式输出中
@@ -254,11 +381,216 @@ const onModelChange = (e) => {
 }
 
 const suggestions = [
-    '查询用户列表，支持按名称模糊搜索和分页',
-    '根据ID查询用户详情并返回',
-    '新增用户，接收POST请求体参数',
-    '更新用户信息，根据ID修改',
+    '按 dnum 查询 ClickHouse operate 最近 100 条，并新建接口',
+    '按 dnum 查询 ClickHouse response，再关联 MySQL 设备信息',
+    '用 redis.scan 和 redis.get 查询一个 key，只读',
+    '写一个 GET 接口，返回固定 JSON',
 ]
+
+watch(messages, (value) => {
+    try {
+        localStorage.setItem(CURRENT_KEY, JSON.stringify(value))
+    } catch (e) { /* ignore */ }
+}, { deep: true })
+
+const persistSessions = () => {
+    try {
+        localStorage.setItem(HISTORY_KEY, JSON.stringify(sessions.value.slice(0, 30)))
+    } catch (e) { /* ignore */ }
+}
+
+const archiveCurrent = () => {
+    const list = messages.value.filter(item => item && item.content)
+    if (!list.length) return
+    const firstUser = list.find(item => item.role === 'user')
+    const title = ((firstUser && firstUser.content) || list[0].content).slice(0, 28)
+    sessions.value.unshift({
+        id: Date.now(),
+        title,
+        messages: list.map(item => ({ role: item.role, content: item.content }))
+    })
+    sessions.value = sessions.value.slice(0, 30)
+    persistSessions()
+}
+
+const newChat = () => {
+    archiveCurrent()
+    messages.value = []
+    showHistory.value = false
+    historyMenu.value = null
+}
+
+const openSession = (session) => {
+    archiveCurrent()
+    messages.value = (session.messages || []).map(item => ({ role: item.role, content: item.content }))
+    showHistory.value = false
+    scrollToBottom()
+}
+
+const openHistoryMenu = (event, session) => {
+    historyMenu.value = { session, x: event.clientX, y: event.clientY }
+}
+
+const closeHistoryMenu = () => {
+    historyMenu.value = null
+}
+
+onMounted(() => document.addEventListener('click', closeHistoryMenu))
+onBeforeUnmount(() => {
+    document.removeEventListener('click', closeHistoryMenu)
+    closePopup()
+})
+
+const renameFromMenu = () => {
+    const session = historyMenu.value && historyMenu.value.session
+    historyMenu.value = null
+    if (session) {
+        startRename(session)
+    }
+}
+
+const deleteFromMenu = () => {
+    const session = historyMenu.value && historyMenu.value.session
+    historyMenu.value = null
+    if (!session) {
+        return
+    }
+    props.modal.confirm('删除会话', '删除「' + (session.title || '未命名') + '」？', () => {
+        sessions.value = sessions.value.filter(item => item.id !== session.id)
+        if (editingId.value === session.id) {
+            editingId.value = null
+        }
+        persistSessions()
+    })
+}
+
+const startRename = (session) => {
+    editingId.value = session.id
+    editingTitle.value = session.title || ''
+    nextTick(() => {
+        const input = Array.isArray(renameInput.value) ? renameInput.value[0] : renameInput.value
+        if (input && input.focus) {
+            input.focus()
+            input.select()
+        }
+    })
+}
+
+const saveTitle = (session) => {
+    if (editingId.value !== session.id) {
+        return
+    }
+    const title = editingTitle.value.trim().slice(0, 40)
+    editingId.value = null
+    if (!title || title === session.title) {
+        return
+    }
+    session.title = title
+    persistSessions()
+}
+
+const currentScript = () => {
+    let code = ''
+    props.bus.$emit('ai-get-current-code', (current) => {
+        code = current || ''
+    })
+    return code
+}
+
+const compactLog = (text) => {
+    const lines = String(text || '').split(/\r?\n/)
+    const kept = []
+    let frames = 0
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i]
+        if (/^\s+at /.test(line)) {
+            frames++
+            if (frames > 3) {
+                continue
+            }
+        }
+        kept.push(line)
+        if (kept.length >= 24) {
+            break
+        }
+    }
+    return kept.join('\n').trim()
+}
+
+const showRunNotice = () => {
+    visible.value = true
+    if (!configLoaded.value) {
+        loadAiConfig()
+    }
+}
+
+const rememberRunLog = (lines) => {
+    const list = Array.isArray(lines) ? lines : []
+    for (let i = 0; i < list.length; i++) {
+        const text = String(list[i] || '')
+        if (/执行SQL|Execute SQL/.test(text)) {
+            recentSql.value = compactLog(text)
+        }
+        if (!/\sERROR\s/.test(text)) {
+            continue
+        }
+        const message = compactLog(text)
+        if (!message) {
+            continue
+        }
+        const sql = recentSql.value ? ('执行的 SQL：\n' + recentSql.value + '\n\n') : ''
+        lastError.value = { title: '运行日志有错误', message: sql + message }
+        showRunNotice()
+    }
+}
+
+const diagnoseError = () => {
+    if (!lastError.value || !lastError.value.message) {
+        props.modal.alert('先在控制台运行一次，等运行日志里出现 ERROR 后再诊断', '诊断')
+        return
+    }
+    visible.value = true
+    if (!configLoaded.value) {
+        loadAiConfig()
+    }
+    useCurrentCode.value = true
+    inputText.value = '请根据下面的运行情况诊断。接口返回给调用方的失败信息仍然是「系统内部出现错误」。说明原因，并给出一份可直接替换的完整脚本。先不要说已经改好，我确认后再点「替换代码」。\n\n'
+        + lastError.value.message
+    sendMessage()
+}
+
+if (props.bus && props.bus.$event) {
+    props.bus.$event('log', ([lines]) => rememberRunLog(lines))
+    props.bus.$event('logs', ([lines]) => rememberRunLog(lines))
+}
+
+props.bus.$on('ai-focus-table', (table) => {
+    const name = table && table.name ? String(table.name) : ''
+    if (!name) {
+        return
+    }
+    focusTable.value = name
+    notify('下一句会带上表 ' + name)
+})
+
+props.bus.$on('ai-run-result', (body) => {
+    const text = typeof body === 'string' ? body : ''
+    let parsed = null
+    try {
+        parsed = JSON.parse(text)
+    } catch (e) {
+        return
+    }
+    if (!parsed || parsed.code !== 1 || !Array.isArray(parsed.data) || parsed.data.length > 0) {
+        return
+    }
+    const sql = recentSql.value ? ('\n执行的 SQL：\n' + recentSql.value) : ''
+    lastError.value = {
+        title: '运行结果是空列表',
+        message: '接口返回成功，data 是空列表。请判断是查询条件没有命中数据，还是 SQL 写错了。' + sql
+    }
+    showRunNotice()
+})
 
 // 从bus事件打开对话框
 props.bus.$on('ai-dialog-open', () => {
@@ -269,8 +601,71 @@ props.bus.$on('ai-dialog-open', () => {
     nextTick(() => inputRef.value && inputRef.value.focus())
 })
 
+const panelStyle = computed(() => popupHost.value ? null : { width: clampWidth(panelWidth.value) + 'px' })
+
+const clampWidth = (width) => Math.min(Math.max(width || 420, 360), Math.max(360, window.innerWidth - 80))
+
+const startResize = (event) => {
+    const startX = event.clientX
+    const startWidth = clampWidth(panelWidth.value)
+    const move = (e) => {
+        panelWidth.value = clampWidth(startWidth + startX - e.clientX)
+    }
+    const up = () => {
+        document.removeEventListener('mousemove', move)
+        document.removeEventListener('mouseup', up)
+        localStorage.setItem(WIDTH_KEY, String(panelWidth.value))
+    }
+    document.addEventListener('mousemove', move)
+    document.addEventListener('mouseup', up)
+}
+
+const closePopup = () => {
+    popupHost.value = null
+    if (popupWindow && !popupWindow.closed) {
+        const win = popupWindow
+        popupWindow = null
+        win.close()
+    }
+    popupWindow = null
+}
+
+const toggleWindow = () => {
+    if (popupHost.value) {
+        closePopup()
+        return
+    }
+    const win = window.open('', 'magic-ai-window', 'width=1040,height=760,resizable=yes')
+    if (!win) {
+        notify('浏览器拦截了独立窗口，请允许弹出窗口')
+        return
+    }
+    win.document.open()
+    win.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>AI Coding 助手</title></head><body class="magic-editor"><div id="magic-ai-host"></div></body></html>')
+    win.document.close()
+    document.querySelectorAll('link[rel="stylesheet"]').forEach((node) => {
+        const link = win.document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = node.href
+        win.document.head.appendChild(link)
+    })
+    document.querySelectorAll('style').forEach((node) => {
+        win.document.head.appendChild(node.cloneNode(true))
+    })
+    const style = win.document.createElement('style')
+    style.textContent = 'html,body{margin:0;height:100%;overflow:hidden;background:var(--main-background-color,#fff)}body{position:relative}'
+    win.document.head.appendChild(style)
+    popupWindow = win
+    popupHost.value = win.document.getElementById('magic-ai-host')
+    win.addEventListener('pagehide', () => {
+        popupHost.value = null
+        popupWindow = null
+    })
+}
+
 const onClose = () => {
     visible.value = false
+    closePopup()
 }
 
 const sendSuggestion = (text) => {
@@ -286,7 +681,34 @@ const getBaseURL = () => {
     return window.location.origin + dir
 }
 
-const sendMessage = async () => {
+const scriptIssues = (code) => {
+    const issues = []
+    if (code.indexOf('"""') >= 0) {
+        issues.push('不要使用三引号，SQL 用普通引号字符串')
+    }
+    if (/&gt;|&lt;|&amp;gt;|&amp;lt;/.test(code)) {
+        issues.push('比较符直接写 >=、<=、>、<')
+    }
+    if (/\b(let|const)\b/.test(code)) {
+        issues.push('不要使用 let 或 const，改成 var')
+    }
+    if (/===|!==/.test(code)) {
+        issues.push('不要使用 === 或 !==')
+    }
+    if (/=>/.test(code)) {
+        issues.push('不要使用箭头函数')
+    }
+    if (/for\s*\(\s*var\s+\w+\s*=/.test(code)) {
+        issues.push('不要写 for (var i = 0; ...)，改成 for (item in list)')
+    }
+    if (/\.map\s*\(/.test(code) || /\.length\b/.test(code)) {
+        issues.push('不要使用 .map() 或 .length')
+    }
+    return issues
+}
+
+const sendMessage = async (options) => {
+    const rewriting = !!(options && options.rewrite)
     const text = inputText.value.trim()
     if (!text || loading.value) return
 
@@ -329,7 +751,8 @@ const sendMessage = async () => {
                 history,
                 currentCode: useCurrentCode.value ? currentCode : '',
                 provider: activeProvider.value,
-                model: activeModel.value
+                model: activeModel.value,
+                focusTable: focusTable.value || ''
             })
         })
 
@@ -390,6 +813,17 @@ const sendMessage = async () => {
     } finally {
         loading.value = false
         streaming.value = false
+        const content = messages.value[msgIndex] && messages.value[msgIndex].content
+        const code = extractCode(content)
+        const issues = code ? scriptIssues(code) : []
+        if (rewriting && issues.length) {
+            messages.value[msgIndex].content += '\n\n仍需手改：\n- ' + issues.join('\n- ')
+        } else if (!rewriting && issues.length) {
+            inputText.value = '刚才的脚本不能直接在 magic-script 里运行，请按这些问题重写一份完整脚本，只保留一份代码：\n- ' + issues.join('\n- ')
+            await sendMessage({ rewrite: true })
+        } else if (code) {
+            await runQuery(messages.value[msgIndex], code)
+        }
     }
 }
 
@@ -402,6 +836,7 @@ const onKeydown = (e) => {
 
 const clearMessages = () => {
     messages.value = []
+    showHistory.value = false
 }
 
 const scrollToBottom = () => {
@@ -412,30 +847,230 @@ const scrollToBottom = () => {
     })
 }
 
+const querySections = (result) => {
+    if (result && Array.isArray(result.sections) && result.sections.length) {
+        return result.sections
+    }
+    return [result]
+}
+
+const sectionKind = (section) => {
+    const rows = section && Array.isArray(section.rows) ? section.rows : []
+    if (!rows.length || Number(section.total) === 0) {
+        return 'empty'
+    }
+    const columns = section && Array.isArray(section.columns) ? section.columns : []
+    if (columns.length === 1 && columns[0] === 'value' && rows.length === 1) {
+        return 'scalar'
+    }
+    return 'table'
+}
+
+const isReadQuery = (code) => {
+    return /\b(select|selectOne|selectValue|selectInt|page|count)\s*\(/i.test(code || '')
+        || /\bredis\s*\.\s*(get|hget|hgetall|hkeys|lrange|llen|smembers|scard|zrange|type|ttl|exists|scan|keys)\s*\(/i.test(code || '')
+}
+
+const isApiDoc = (content) => {
+    return /接口说明|请求路径|返回参数|返回示例/.test(content || '')
+}
+
+const downloadBlob = (blob, filename) => {
+    const link = document.createElement('a')
+    link.href = URL.createObjectURL(blob)
+    link.download = filename
+    link.click()
+    URL.revokeObjectURL(link.href)
+}
+
+const exportDoc = (content) => {
+    const title = (String(content || '').match(/^#\s+(.+)$/m) || [, '接口文档'])[1].replace(/[\\/:*?"<>|]/g, '').trim().slice(0, 40) || '接口文档'
+    downloadBlob(new Blob([content || ''], { type: 'text/markdown;charset=utf-8' }), title + '.md')
+}
+
+const exportQuery = async (message, code) => {
+    if (!message || !code || message.exporting || !isReadQuery(code)) {
+        return
+    }
+    message.exporting = true
+    message.exportError = ''
+    const token = localStorage.getItem('magic-token') || 'unauthorization'
+    try {
+        const resp = await fetch(getBaseURL() + '/ai/export', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'magic-token': token
+            },
+            body: JSON.stringify({ script: code })
+        })
+        if (!resp.ok) {
+            message.exportError = await resp.text() || '导出失败'
+            return
+        }
+        downloadBlob(await resp.blob(), 'query.csv')
+    } catch (e) {
+        message.exportError = '导出失败'
+    } finally {
+        message.exporting = false
+    }
+}
+
+const runQuery = async (message, code) => {
+    if (!message || !code || message.querying || !isReadQuery(code)) {
+        return
+    }
+    message.querying = true
+    message.queryError = ''
+    message.queryResult = null
+    const token = localStorage.getItem('magic-token') || 'unauthorization'
+    try {
+        const resp = await fetch(getBaseURL() + '/ai/query', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'magic-token': token
+            },
+            body: JSON.stringify({ script: code })
+        })
+        const body = await resp.json()
+        if (!body || body.code !== 1) {
+            message.queryError = (body && body.message) || '查询失败'
+        } else {
+            message.queryResult = body.data
+        }
+    } catch (e) {
+        message.queryError = '查询失败'
+    } finally {
+        message.querying = false
+        scrollToBottom()
+    }
+}
+
 const extractCode = (content) => {
     if (!content) return null
-    const match = content.match(/```(?:magicscript|ms)?\s*\n?([\s\S]*?)```/)
+    const match = content.match(/```[a-zA-Z0-9_-]*\s*\n?([\s\S]*?)```/)
     return match ? match[1].trim() : null
 }
 
 const insertCode = (code) => {
     props.bus.$emit('ai-insert-code', code)
-    props.modal.message('代码已插入到编辑器')
+    notify('代码已插入到编辑器')
 }
 
 const replaceCode = (code) => {
     props.modal.confirm('提示', '确定要替换当前编辑器中的全部内容吗？', () => {
         props.bus.$emit('ai-replace-code', code)
-        props.modal.message('代码已替换')
+        notify('代码已替换')
     })
 }
 
+const copyWithTextarea = (code) => {
+    const area = document.createElement('textarea')
+    area.value = code
+    area.setAttribute('readonly', 'readonly')
+    area.style.position = 'fixed'
+    area.style.top = '0'
+    area.style.left = '-9999px'
+    document.body.appendChild(area)
+    area.focus()
+    area.select()
+    area.setSelectionRange(0, area.value.length)
+    let copied = false
+    try {
+        copied = document.execCommand('copy')
+    } catch (e) {
+        copied = false
+    }
+    document.body.removeChild(area)
+    return copied
+}
+
 const copyCode = (code) => {
-    navigator.clipboard.writeText(code).then(() => {
-        props.modal.message('代码已复制到剪贴板')
-    }).catch(() => {
-        props.modal.alert('复制失败，请手动复制')
-    })
+    const done = () => notify('代码已复制到剪贴板')
+    const fail = () => props.modal.alert('复制失败，请手动复制')
+    if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(code).then(done).catch(() => copyWithTextarea(code) ? done() : fail())
+        return
+    }
+    copyWithTextarea(code) ? done() : fail()
+}
+
+const notify = (text, ok = true) => {
+    try {
+        if (props.bus && typeof props.bus.status === 'function') {
+            props.bus.status(text, ok !== false)
+            return
+        }
+    } catch (e) { /* 状态栏不可用时改用弹窗 */ }
+    props.modal.alert(text, '提示')
+}
+
+const suggestParams = (code) => {
+    const names = []
+    const pattern = /#\{([A-Za-z_][\w]*)\}/g
+    let found = pattern.exec(code || '')
+    while (found) {
+        if (names.indexOf(found[1]) < 0) {
+            names.push(found[1])
+        }
+        found = pattern.exec(code || '')
+    }
+    return names
+}
+
+const suggestName = (code) => {
+    const table = (code || '').match(/\bfrom\s+([A-Za-z_][\w]*)/i)
+    if (table) {
+        const raw = table[1]
+        return 'query' + raw.charAt(0).toUpperCase() + raw.slice(1)
+    }
+    return 'newApi'
+}
+
+const createApi = (code) => {
+    const name = suggestName(code)
+    createForm.value = { name, path: '/' + name, method: 'GET', parameters: suggestParams(code).join(','), script: code, saving: false }
+}
+
+const submitCreate = async () => {
+    const form = createForm.value
+    if (!form || form.saving) return
+    if (!form.name || !String(form.name).trim() || !form.path || !String(form.path).trim()) {
+        props.modal.alert('请填写名称和路径')
+        return
+    }
+    form.saving = true
+    const token = localStorage.getItem('magic-token') || 'unauthorization'
+    try {
+        const resp = await fetch(getBaseURL() + '/ai/create', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'magic-token': token
+            },
+            body: JSON.stringify({
+                name: form.name,
+                path: form.path,
+                method: form.method,
+                parameters: form.parameters,
+                script: form.script
+            })
+        })
+        const body = await resp.json()
+        if (body && body.code === 1 && body.data) {
+            const saved = body.data
+            createForm.value = null
+            props.bus.$emit('load-resources')
+            props.modal.alert('已新建 ' + saved.groupName + '/' + saved.name + '  ' + saved.method + ' ' + saved.path, '新建接口')
+        } else {
+            form.saving = false
+            props.modal.alert((body && body.message) || '新建接口失败', '新建接口')
+        }
+    } catch (e) {
+        form.saving = false
+        props.modal.alert((e && e.message) || '新建接口失败', '新建接口')
+    }
 }
 
 const renderMarkdown = (content) => {
@@ -480,6 +1115,27 @@ defineExpose({ visible })
     box-shadow: -4px 0 16px rgba(0, 0, 0, 0.08);
     animation: slideInRight 0.2s ease-out;
 }
+.magic-ai-panel--window {
+    top: 0;
+    right: 0;
+    left: 0;
+    width: auto;
+    border-left: none;
+    box-shadow: none;
+    animation: none;
+}
+.magic-ai-resize {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 6px;
+    cursor: ew-resize;
+    z-index: 6;
+}
+.magic-ai-resize:hover {
+    background: rgba(91, 126, 229, 0.45);
+}
 @keyframes slideInRight {
     from { transform: translateX(20px); opacity: 0; }
     to { transform: translateX(0); opacity: 1; }
@@ -500,6 +1156,169 @@ defineExpose({ visible })
     display: flex;
     align-items: center;
     gap: 8px;
+    min-width: 0;
+}
+.magic-ai-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+}
+.magic-ai-header-btn {
+    border: 1px solid var(--main-border-color);
+    background: transparent;
+    color: var(--main-color);
+    border-radius: 6px;
+    padding: 2px 8px;
+    font-size: 12px;
+    cursor: pointer;
+    font-family: inherit;
+}
+.magic-ai-header-btn:hover {
+    background: var(--select-option-hover-background-color);
+}
+.magic-ai-create-mask {
+    position: absolute;
+    inset: 44px 0 0 0;
+    background: rgba(0, 0, 0, 0.35);
+    z-index: 5;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding-top: 36px;
+}
+.magic-ai-create {
+    width: 300px;
+    background: var(--main-background-color);
+    color: var(--main-color);
+    border: 1px solid var(--main-border-color);
+    border-radius: 8px;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.magic-ai-create-title {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+.magic-ai-create label {
+    font-size: 12px;
+}
+.magic-ai-create input,
+.magic-ai-create select {
+    height: 30px;
+    border: 1px solid var(--main-border-color);
+    border-radius: 6px;
+    background: var(--main-background-color);
+    color: var(--main-color);
+    padding: 0 8px;
+    font-size: 12px;
+    font-family: inherit;
+}
+.magic-ai-create-hint {
+    font-size: 11px;
+    line-height: 1.5;
+    opacity: 0.75;
+}
+.magic-ai-create-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 6px;
+}
+.magic-ai-create-save,
+.magic-ai-create-cancel {
+    border-radius: 6px;
+    padding: 4px 12px;
+    font-size: 12px;
+    cursor: pointer;
+    font-family: inherit;
+}
+.magic-ai-create-save {
+    border: none;
+    background: #5b7ee5;
+    color: #fff;
+}
+.magic-ai-create-save:disabled {
+    opacity: 0.6;
+    cursor: default;
+}
+.magic-ai-create-cancel {
+    border: 1px solid var(--main-border-color);
+    background: transparent;
+    color: var(--main-color);
+}
+.magic-ai-history {
+    max-height: 180px;
+    overflow: auto;
+    border-bottom: 1px solid var(--main-border-color);
+    background: var(--main-background-color);
+}
+.magic-ai-history-empty {
+    padding: 8px 14px;
+    color: var(--main-color);
+    font-size: 12px;
+}
+.magic-ai-history-item {
+    display: flex;
+    align-items: center;
+    padding: 2px 8px;
+}
+.magic-ai-history-item:hover {
+    background: var(--select-option-hover-background-color);
+}
+.magic-ai-history-title,
+.magic-ai-history-input {
+    flex: 1;
+    min-width: 0;
+    text-align: left;
+    padding: 4px 8px;
+    border: none;
+    background: transparent;
+    color: var(--main-color);
+    font-size: 12px;
+    font-family: inherit;
+}
+.magic-ai-history-title {
+    cursor: pointer;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.magic-ai-history-input {
+    border: 1px solid var(--main-border-color);
+    border-radius: 4px;
+    background: var(--input-background-color, #fff);
+}
+.magic-ai-history-menu {
+    position: fixed;
+    z-index: 300;
+    min-width: 96px;
+    padding: 4px 0;
+    border: 1px solid var(--main-border-color);
+    border-radius: 4px;
+    background: var(--main-background-color);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+}
+.magic-ai-history-menu button {
+    display: block;
+    width: 100%;
+    padding: 6px 12px;
+    border: none;
+    background: transparent;
+    color: var(--main-color);
+    font-size: 12px;
+    text-align: left;
+    cursor: pointer;
+    font-family: inherit;
+}
+.magic-ai-history-menu button:hover {
+    background: var(--select-option-hover-background-color);
+}
+.magic-ai-history-menu-danger {
+    color: #d64545;
 }
 .magic-ai-header-icon {
     display: flex;
@@ -548,6 +1367,7 @@ defineExpose({ visible })
 /* Messages area */
 .magic-ai-messages {
     flex: 1;
+    overflow-x: hidden;
     overflow-y: auto;
     padding: 16px;
     display: flex;
@@ -635,6 +1455,8 @@ defineExpose({ visible })
     display: flex;
     gap: 10px;
     align-items: flex-start;
+    max-width: 100%;
+    min-width: 0;
     animation: fadeInMsg 0.2s ease-out;
 }
 @keyframes fadeInMsg {
@@ -666,6 +1488,10 @@ defineExpose({ visible })
 .magic-ai-message-body {
     max-width: 82%;
     min-width: 0;
+}
+.magic-ai-message-body--result {
+    flex: 1;
+    max-width: calc(100% - 36px);
 }
 .magic-ai-message-content {
     padding: 10px 14px;
@@ -709,10 +1535,83 @@ defineExpose({ visible })
     color: var(--main-color);
     border: 1px solid var(--main-border-color);
 }
-.magic-ai-btn--insert:hover {
+.magic-ai-btn--insert:hover,
+.magic-ai-btn--create:hover {
     background: #5b7ee5;
     color: #fff;
     border-color: #5b7ee5;
+}
+.magic-ai-btn--create,
+.magic-ai-btn--run {
+    background: var(--select-option-hover-background-color);
+    color: var(--main-color);
+    border: 1px solid var(--main-border-color);
+}
+.magic-ai-btn--run:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+.magic-ai-query-status,
+.magic-ai-query-summary {
+    margin-top: 8px;
+    font-size: 12px;
+    color: var(--main-color);
+}
+.magic-ai-query-section + .magic-ai-query-section {
+    margin-top: 10px;
+}
+.magic-ai-query-result {
+    min-width: 0;
+    max-width: 100%;
+    word-break: normal;
+}
+.magic-ai-query-table-wrap {
+    margin-top: 6px;
+    width: 100%;
+    max-width: 100%;
+    max-height: 280px;
+    overflow: auto;
+    border: 1px solid var(--main-border-color);
+    border-radius: 4px;
+}
+.magic-ai-query-table-wrap::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+.magic-ai-query-table-wrap::-webkit-scrollbar-thumb {
+    background: var(--main-border-color);
+    border-radius: 4px;
+}
+.magic-ai-query-table-wrap table {
+    width: max-content;
+    min-width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 12px;
+}
+.magic-ai-query-table-wrap th,
+.magic-ai-query-table-wrap td {
+    padding: 4px 8px;
+    border-bottom: 1px solid var(--main-border-color);
+    text-align: left;
+    white-space: nowrap;
+    word-break: normal;
+}
+.magic-ai-query-table-wrap th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--main-background-color);
+}
+.magic-ai-query-table-wrap th:first-child,
+.magic-ai-query-table-wrap td:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    background: var(--main-background-color);
+}
+.magic-ai-query-table-wrap th:first-child {
+    z-index: 2;
 }
 .magic-ai-btn--replace {
     background: var(--select-option-hover-background-color);
@@ -755,6 +1654,51 @@ defineExpose({ visible })
 }
 
 /* Input area */
+.magic-ai-run-error {
+    margin: 0 12px 8px;
+    padding: 8px 10px;
+    border: 1px solid #f0c36d;
+    background: #fff8e8;
+    color: #6b4e16;
+    border-radius: 6px;
+    font-size: 12px;
+    line-height: 1.5;
+}
+.magic-ai-run-error-text {
+    max-height: 72px;
+    overflow: auto;
+    word-break: break-all;
+}
+.magic-ai-run-error-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 6px;
+}
+.magic-ai-run-error-actions button {
+    border: 1px solid #d7b56a;
+    background: #fff;
+    color: #6b4e16;
+    border-radius: 4px;
+    padding: 2px 8px;
+    cursor: pointer;
+}
+.magic-ai-focus {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin: 0 0 8px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    background: var(--main-hover-background-color, rgba(91, 126, 229, 0.12));
+    color: var(--main-color);
+    font-size: 12px;
+}
+.magic-ai-focus button {
+    border: none;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+}
 .magic-ai-input-area {
     border-top: 1px solid var(--main-border-color);
     padding: 10px 14px 12px;

@@ -2,9 +2,11 @@ package org.ssssssss.magicapi.redis;
 
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.ssssssss.magicapi.core.config.MagicAPIProperties;
 import org.ssssssss.magicapi.core.config.MagicPluginConfiguration;
@@ -35,8 +37,15 @@ public class MagicRedisConfiguration implements MagicPluginConfiguration {
 	 * 注入redis模块
 	 */
 	@Bean
-	public RedisModule redisFunctions(RedisConnectionFactory connectionFactory) {
-		return new RedisModule(connectionFactory);
+	public RedisModule redisFunctions(RedisConnectionFactory connectionFactory, ApplicationContext context) {
+		RedisTemplate<?, ?> template = null;
+		for (RedisTemplate<?, ?> candidate : context.getBeansOfType(RedisTemplate.class).values()) {
+			if (!(candidate instanceof StringRedisTemplate)) {
+				template = candidate;
+				break;
+			}
+		}
+		return new RedisModule(connectionFactory, template);
 	}
 
 	@Override

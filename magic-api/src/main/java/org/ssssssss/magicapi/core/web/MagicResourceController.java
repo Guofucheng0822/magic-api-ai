@@ -82,11 +82,11 @@ public class MagicResourceController extends MagicController implements MagicExc
 				.findFirst()
 				.orElseThrow(() -> new InvalidArgumentException(GROUP_NOT_FOUND))
 				.read(decrypt.getBytes(StandardCharsets.UTF_8));
+		if (entity == null) {
+			return new JsonBean<>(-1, "保存内容无法解析");
+		}
 		isTrue(allowVisit(request, Authorization.SAVE, entity), PERMISSION_INVALID);
 		// 自动保存的代码，和旧版代码对比，如果一致，则不保存，直接返回。
-		if (entity ==null){
-			return new JsonBean<>(null);
-		}
 		if(entity.getId() != null && "1".equals(auto)){
 			MagicEntity oldInfo = service.file(entity.getId());
 			if(oldInfo != null && Objects.equals(oldInfo, entity)){
@@ -96,7 +96,7 @@ public class MagicResourceController extends MagicController implements MagicExc
 		if (MagicConfiguration.getMagicResourceService().saveFile(entity)) {
 			return new JsonBean<>(entity.getId());
 		}
-		return new JsonBean<>(null);
+		return new JsonBean<>(-1, "保存失败");
 	}
 
 	@GetMapping("/resource/file/{id}")

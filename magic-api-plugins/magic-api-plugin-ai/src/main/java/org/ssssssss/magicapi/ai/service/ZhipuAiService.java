@@ -48,7 +48,7 @@ public class ZhipuAiService implements AiService {
         ArrayNode messages = objectMapper.createArrayNode();
         ObjectNode systemMsg = messages.addObject();
         systemMsg.put("role", "system");
-        systemMsg.put("content", buildSystemPrompt(request.getMessage()));
+        systemMsg.put("content", buildSystemPrompt(request));
         if (request.getCurrentCode() != null && !request.getCurrentCode().trim().isEmpty()) {
             ObjectNode codeContextMsg = messages.addObject();
             codeContextMsg.put("role", "system");

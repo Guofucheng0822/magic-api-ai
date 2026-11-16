@@ -18,6 +18,8 @@ export default {
         assistant: 'AI',
         provider: '提供商',
         model: '模型',
-        switchFailed: '切换模型失败，请检查配置'
+        switchFailed: '切换模型失败，请检查配置',
+        schema: '表结构',
+        schemaName: '数据源表结构'
     }
 }

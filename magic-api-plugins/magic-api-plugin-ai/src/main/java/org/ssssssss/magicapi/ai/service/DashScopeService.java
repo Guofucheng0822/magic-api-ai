@@ -48,7 +48,7 @@ public class DashScopeService implements AiService {
         ArrayNode messages = objectMapper.createArrayNode();
         ObjectNode systemMsg = messages.addObject();
         systemMsg.put("role", "system");
-        systemMsg.put("content", buildSystemPrompt(request.getMessage()));
+        systemMsg.put("content", buildSystemPrompt(request));
         if (request.getCurrentCode() != null && !request.getCurrentCode().trim().isEmpty()) {
             ObjectNode codeContextMsg = messages.addObject();
             codeContextMsg.put("role", "system");
@@ -81,7 +81,7 @@ public class DashScopeService implements AiService {
             // 系统提示词
             ObjectNode systemMsg = messages.addObject();
             systemMsg.put("role", "system");
-            systemMsg.put("content", buildSystemPrompt(request.getMessage()));
+            systemMsg.put("content", buildSystemPrompt(request));
 
             // 代码上下文
             if (request.getCurrentCode() != null && !request.getCurrentCode().trim().isEmpty()) {

@@ -45,7 +45,7 @@ public class ClaudeService implements AiService {
     }
 
     private String buildSystemPromptFull(AiChatRequest request) {
-        StringBuilder systemPrompt = new StringBuilder(buildSystemPrompt(request.getMessage()));
+        StringBuilder systemPrompt = new StringBuilder(buildSystemPrompt(request));
         if (request.getCurrentCode() != null && !request.getCurrentCode().trim().isEmpty()) {
             systemPrompt.append("\n\n当前编辑器中的代码：\n```magicscript\n")
                     .append(request.getCurrentCode())

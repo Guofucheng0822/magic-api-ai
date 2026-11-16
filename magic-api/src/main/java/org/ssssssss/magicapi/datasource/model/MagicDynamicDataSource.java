@@ -130,6 +130,14 @@ public class MagicDynamicDataSource {
 	 *
 	 * @param datasourceKey 数据源Key
 	 */
+	public Collection<DataSourceNode> getDataSources() {
+		return dataSourceMap.values();
+	}
+
+	public boolean contains(String datasourceKey) {
+		return dataSourceMap.containsKey(datasourceKey == null ? "" : datasourceKey);
+	}
+
 	public MagicDynamicDataSource.DataSourceNode getDataSource(String datasourceKey) {
 		if (datasourceKey == null) {
 			datasourceKey = "";

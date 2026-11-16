@@ -18,6 +18,8 @@ export default {
         assistant: 'AI',
         provider: 'Provider',
         model: 'Model',
-        switchFailed: 'Failed to switch model, please check configuration'
+        switchFailed: 'Failed to switch model, please check configuration',
+        schema: 'Schema',
+        schemaName: 'Datasource Schema'
     }
 }

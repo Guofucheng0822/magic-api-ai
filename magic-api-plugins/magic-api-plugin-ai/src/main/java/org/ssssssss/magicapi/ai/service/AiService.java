@@ -34,6 +34,30 @@ public interface AiService {
     }
 
     /**
+     * 用本轮问题、当前代码和历史一起匹配表结构，避免追问时丢掉表名。
+     */
+    default String buildSystemPrompt(AiChatRequest request) {
+        StringBuilder text = new StringBuilder();
+        if (request != null && request.getMessage() != null) {
+            text.append(request.getMessage());
+        }
+		if (request != null && request.getCurrentCode() != null) {
+			text.append('\n').append(request.getCurrentCode());
+		}
+		if (request != null && request.getFocusTable() != null && !request.getFocusTable().trim().isEmpty()) {
+			text.append("\n当前选中的表：").append(request.getFocusTable().trim());
+		}
+        if (request != null && request.getHistory() != null) {
+            for (AiChatMessage msg : request.getHistory()) {
+                if (msg != null && msg.getContent() != null) {
+                    text.append('\n').append(msg.getContent());
+                }
+            }
+        }
+        return buildSystemPrompt(text.toString());
+    }
+
+    /**
      * 构建系统提示词（无参兼容版本，加载默认 Skill）
      */
     default String buildSystemPrompt() {

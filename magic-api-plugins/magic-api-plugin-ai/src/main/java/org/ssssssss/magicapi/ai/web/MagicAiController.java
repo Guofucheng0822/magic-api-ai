@@ -8,12 +8,17 @@ import org.ssssssss.magicapi.ai.model.AiChatRequest;
 import org.ssssssss.magicapi.ai.model.AiChatResponse;
 import org.ssssssss.magicapi.ai.service.AiService;
 import org.ssssssss.magicapi.ai.service.AiServiceManager;
+import org.ssssssss.magicapi.ai.service.ApiCreateService;
+import org.ssssssss.magicapi.ai.service.DatasourceSchemaService;
+import org.ssssssss.magicapi.ai.service.ScriptQueryService;
 import org.ssssssss.magicapi.core.annotation.Valid;
 import org.ssssssss.magicapi.core.config.MagicConfiguration;
 import org.ssssssss.magicapi.core.model.JsonBean;
 import org.ssssssss.magicapi.core.web.MagicController;
 import org.ssssssss.magicapi.core.web.MagicExceptionHandler;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -99,5 +104,68 @@ public class MagicAiController extends MagicController implements MagicException
     @Valid
     public JsonBean<List<Map<String, Object>>> getProviders() {
         return new JsonBean<>(aiServiceManager.getConfiguredProviders());
+    }
+
+    @GetMapping("/ai/datasources")
+    @ResponseBody
+    @Valid
+    public JsonBean<List<Map<String, String>>> datasources() {
+        DatasourceSchemaService service = DatasourceSchemaService.get();
+        if (service == null) {
+            return new JsonBean<>(java.util.Collections.emptyList());
+        }
+        return new JsonBean<>(service.optionalSources());
+    }
+
+    @GetMapping("/ai/schema")
+    @ResponseBody
+    @Valid
+    public JsonBean<List<Map<String, Object>>> schema() {
+        DatasourceSchemaService service = DatasourceSchemaService.get();
+        if (service == null) {
+            return new JsonBean<>(-1, "表结构服务未就绪");
+        }
+        return new JsonBean<>(service.describe());
+    }
+
+    @PostMapping("/ai/query")
+    @ResponseBody
+    @Valid
+    public JsonBean<Map<String, Object>> query(@RequestBody Map<String, String> body) {
+        try {
+            return new JsonBean<>(ScriptQueryService.run(body == null ? null : body.get("script")));
+        } catch (Exception e) {
+            logger.warn("AI 查询失败: {}", e.getMessage());
+            return new JsonBean<>(-1, e.getMessage());
+        }
+    }
+
+    @PostMapping("/ai/export")
+    @Valid
+    public ResponseEntity<byte[]> export(@RequestBody Map<String, String> body) {
+        try {
+            byte[] csv = ScriptQueryService.exportCsv(body == null ? null : body.get("script"));
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"query.csv\"")
+                    .contentType(new MediaType("text", "csv", java.nio.charset.StandardCharsets.UTF_8))
+                    .body(csv);
+        } catch (Exception e) {
+            logger.warn("AI 导出失败: {}", e.getMessage());
+            return ResponseEntity.badRequest()
+                    .contentType(MediaType.TEXT_PLAIN)
+                    .body(e.getMessage() == null ? "导出失败".getBytes(java.nio.charset.StandardCharsets.UTF_8) : e.getMessage().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        }
+    }
+
+    @PostMapping("/ai/create")
+    @ResponseBody
+    @Valid
+	public JsonBean<Map<String, String>> create(@RequestBody Map<String, Object> body) {
+        try {
+            return new JsonBean<>(ApiCreateService.get().create(body));
+        } catch (Exception e) {
+            logger.warn("新建接口失败: {}", e.getMessage());
+            return new JsonBean<>(-1, e.getMessage());
+        }
     }
 }

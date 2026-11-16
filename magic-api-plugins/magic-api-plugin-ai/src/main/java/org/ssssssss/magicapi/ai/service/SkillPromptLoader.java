@@ -130,6 +130,29 @@ public class SkillPromptLoader {
             }
         }
 
+        prompt.append("\n\n## 当前环境\n");
+        prompt.append("- 主库用 db.select、db.selectOne、db.update。命名数据源用 db.{key}.select。\n");
+        prompt.append("- ClickHouse 用 db.clickhouse.select、db.clickhouse.selectOne，表名区分大小写。\n");
+        String optionalSources = DatasourceSchemaService.optionalSourcesPrompt();
+        if (!optionalSources.isEmpty()) {
+            prompt.append(optionalSources);
+        }
+        prompt.append("- Redis 只开放查询：redis.get、redis.hget、redis.hgetall、redis.hkeys、redis.lrange、redis.llen、redis.smembers、redis.scard、redis.zrange、redis.type、redis.ttl、redis.exists、redis.scan。不要生成 set、del、flush。\n");
+        prompt.append("- 新建接口必须使用新的 name 和 path，不要复用当前打开的接口。只输出一份可执行的查询脚本。用户只是想看数据时，系统会执行这份只读脚本并把结果贴回对话，不要自己编造查询结果，也不要说已经查过了。需要保存成接口时，由用户点击「新建接口」。\n");
+        prompt.append("- magic-script 使用 var 和 for (item in list)，不要写 let、const、===、箭头函数或 for (var i = 0; ...)。\n");
+        prompt.append("- SQL 比较符直接写 >=、<=、>、<。不要写成 &gt;、&lt; 或 &gt;=。\n");
+        prompt.append("- 用户贴出的是运行日志，不是要返回给调用方的内容。接口失败时仍返回「系统内部出现错误」。根据日志说明原因，再给出一份完整脚本。不要说文件已经改好，等用户自己点击「替换代码」。\n");
+        prompt.append("- 用户要求接口文档时，输出一份 Markdown，包含接口说明、基本信息、请求参数、返回参数、请求示例、返回示例和参考脚本。路径、方法和字段以当前接口或脚本为准，不要套用无关示例。\n");
+		prompt.append("- 下面给出的是数据库里真实的库、表和字段。用户用业务说法提问时，你自己判断对应哪张表。只使用列出的字段，不要编造字段，不要让用户执行 show columns，也不要问用户表在哪个库。\n");
+        try {
+            String schema = DatasourceSchemaService.promptFor(userMessage);
+            if (schema != null && !schema.isEmpty()) {
+                prompt.append("\n").append(schema);
+            }
+        } catch (Exception ignored) {
+            // 表结构读取失败时仍返回基础提示词
+        }
+
         return prompt.toString();
     }
 

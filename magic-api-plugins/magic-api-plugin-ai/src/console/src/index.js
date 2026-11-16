@@ -1,6 +1,7 @@
 import localZhCN from './i18n/zh-cn.js'
 import localEn from './i18n/en.js'
 import MagicAiDialog from './components/magic-ai-dialog.vue'
+import MagicSchemaPanel from './components/magic-schema-panel.vue'
 import 'vite-plugin-svg-icons/register'
 
 export default (opt) => {
@@ -29,6 +30,10 @@ export default (opt) => {
             name: i18n.format('ai.name'),
             onClick: () => bus.$emit('ai-dialog-open'),
             component: MagicAiDialog
+        }, {
+            type: 'schema',
+            embed: true,
+            component: MagicSchemaPanel
         }]
     }
 }

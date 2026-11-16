@@ -27,10 +27,15 @@ public class AiChatRequest {
      */
     private String provider;
 
-    /**
-     * 指定使用的模型（由前端传入）
-     */
-    private String model;
+	/**
+	 * 指定使用的模型（由前端传入）
+	 */
+	private String model;
+
+	/**
+	 * 用户在数据源树点中的表名
+	 */
+	private String focusTable;
 
     public String getMessage() {
         return message;
@@ -68,7 +73,15 @@ public class AiChatRequest {
         return model;
     }
 
-    public void setModel(String model) {
-        this.model = model;
-    }
+	public void setModel(String model) {
+		this.model = model;
+	}
+
+	public String getFocusTable() {
+		return focusTable;
+	}
+
+	public void setFocusTable(String focusTable) {
+		this.focusTable = focusTable;
+	}
 }
