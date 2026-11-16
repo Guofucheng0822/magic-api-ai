@@ -19,7 +19,7 @@
 
 magic-api 是一个基于Java的接口快速开发框架，编写接口将通过magic-api提供的UI界面完成，自动映射为HTTP接口，无需定义Controller、Service、Dao、Mapper、XML、VO等Java对象即可完成常见的HTTP API接口开发
 
-本仓库是 [ssssssss-team/magic-api](https://github.com/ssssssss-team/magic-api) 的二次开发 fork：在保留上游能力的基础上，支持 **JDK 17–21** 构建/运行，并提供可选插件 `magic-api-plugin-ai`，可在控制台通过 **AI 对话生成接口**、在线测试与一键发布（锁定）。详细操作见 [docs/使用指南.md](docs/使用指南.md)。
+本仓库是 [ssssssss-team/magic-api](https://github.com/ssssssss-team/magic-api) 的二次开发 fork：在保留上游能力的基础上，支持 **JDK 17–21** 构建/运行，并提供可选插件 `magic-api-plugin-ai`——在控制台用自然语言对话，结合已加载的**数据源表结构**生成只读查询 / 接口脚本，支持多模型服务、在线执行、结果导出，以及将确认后的查询保存为新接口。详细操作见 [docs/使用指南.md](docs/使用指南.md)、[docs/本仓库改动说明.md](docs/本仓库改动说明.md)。
 
 【已有上千家中小型公司使用，上万名开发者用于接口配置开发。上百名开发者参与提交了功能建议，接近20多名贡献者参与。已被gitee长期推荐。从首个版本开始不断优化升级，目前版本稳定，开发者交流群活跃。参与交流QQ群④700818216】
 
@@ -44,7 +44,7 @@ magic-api 是一个基于Java的接口快速开发框架，编写接口将通过
 - 支持在线调试
 - 支持自定义工具类、自定义模块包、自定义类型扩展、自定义方言、自定义列名转换等自定义操作
 - **本 fork**：工具链支持 **JDK 17–21**（字节码 `--release 17`）
-- **本 fork**：可选 AI 助手 — 对话生成接口、在线测试、一键发布（资源锁定）
+- **本 fork**：可选 AI 助手 — 多模型对话（`openai` / `deepseek` / `dashscope` / `zhipu` / `minimax` / `claude`）、数据源 schema 感知、只读查询执行、CSV/Markdown 导出、确认后保存为新接口
 
 # 环境要求 / 构建
 
@@ -87,12 +87,12 @@ magic-api.resource.location=/data/magic-api
 
 ## AI 助手（可选插件）
 
-引入 `magic-api-plugin-ai` 后，可在控制台底部工具条打开 **AI 助手**，用自然语言生成 Magic-API 接口，并支持**在线测试**与**一键发布（锁定）**。
+引入 `magic-api-plugin-ai` 后，可在控制台用 **`Ctrl+Shift+A`** 或数据源树中的 AI 入口打开对话：助手会读取已加载库表的 **schema**，按业务说法生成**只读** magic-script 并执行；查询结果可导出 CSV，接口文档可导出 Markdown；确认后可填写名称/路径/方法保存为**新接口**（不覆盖当前打开的接口）。
 
-默认推荐对接阿里云百炼 **DashScope / 通义千问（Qwen）**：
+配置属性以代码为准（`MagicAiProperties`，前缀 `magic-api.ai`）：**`enabled`**（不是 `enable`）、**`provider`**、**`api-url`**、**`api-key`**、**`model`**；也支持 `providers` 多提供商映射与 `active-provider` / `active-model`。
 
 ```xml
-<!-- 可选：本 fork 的 AI 对话生成插件 -->
+<!-- 可选：本 fork 的 AI 对话插件 -->
 <dependency>
 	<groupId>org.ssssssss</groupId>
 	<artifactId>magic-api-plugin-ai</artifactId>
@@ -100,16 +100,32 @@ magic-api.resource.location=/data/magic-api
 </dependency>
 ```
 
+单提供商示例（DashScope / 通义千问）：
+
 ```yaml
 magic-api:
+  web: /magic/web
   ai:
     enabled: true
     provider: dashscope
-    # 服务地址（DashScope / Qwen）；密钥用环境变量注入
     api-url: https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation
     api-key: ${MAGIC_API_AI_API_KEY:}
     model: qwen-plus
 ```
+
+DeepSeek 示例（与插件 README 一致）：
+
+```yaml
+magic-api:
+  ai:
+    enabled: true
+    provider: deepseek
+    api-url: https://api.deepseek.com/chat/completions
+    api-key: ${MAGIC_API_AI_API_KEY:}
+    model: deepseek-chat
+```
+
+`provider` 还可为 `openai`、`claude`、`zhipu`、`minimax`。ClickHouse / Redis / Doris / SelectDB 按需另加对应 `magic-api-plugin-*`。
 
 启动前设置环境变量（勿把 Key 写入仓库）：
 
@@ -117,11 +133,13 @@ magic-api:
 export MAGIC_API_AI_API_KEY=sk-xxxxxxxx
 ```
 
-> 属性名为 `enabled` / `api-url`（见插件 README）。操作流程、验证清单与故障排查见 **[docs/使用指南.md](docs/使用指南.md)**；模块细节见 [`magic-api-plugins/magic-api-plugin-ai/README.md`](magic-api-plugins/magic-api-plugin-ai/README.md)。
+- 二次开发步骤与验证清单：[docs/使用指南.md](docs/使用指南.md)
+- 插件能力与改动说明：[docs/本仓库改动说明.md](docs/本仓库改动说明.md)、[`magic-api-plugins/magic-api-plugin-ai/README.md`](magic-api-plugins/magic-api-plugin-ai/README.md)
 
 # 文档/演示
 
 - 本 fork 使用指南（构建、AI 接入、验证）：[docs/使用指南.md](docs/使用指南.md)
+- 本 fork 相对官方改动：[docs/本仓库改动说明.md](docs/本仓库改动说明.md)
 - 文档地址：[https://ssssssss.org](https://ssssssss.org)
 - 在线演示：[https://magic-api.ssssssss.org.cn](https://magic-api.ssssssss.org.cn)
 
