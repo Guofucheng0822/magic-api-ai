@@ -28,8 +28,8 @@ export default {
     plugins: [
         vue(),
         viteSvgIcons({
-            iconDirs: [path.resolve(process.cwd(), 'src/icons')],
-            symbolId: 'magic-ai-[name]'
-        }),
+			iconDirs: [path.resolve(process.cwd(), 'src/icons')],
+			symbolId: 'magic-ai-[name]'
+		}),
     ]
 }

@@ -1,41 +1,39 @@
-import { defineComponent, h, provide } from 'vue'
 import localZhCN from './i18n/zh-cn.js'
 import localEn from './i18n/en.js'
-import MagicAIChat from './components/magic-ai-chat.vue'
-import MagicSchema from './service/magic-schema.js'
+import MagicAiDialog from './components/magic-ai-dialog.vue'
+import MagicSchemaPanel from './components/magic-schema-panel.vue'
 import 'vite-plugin-svg-icons/register'
 
-function wrapChat(opt) {
-    return defineComponent({
-        name: 'MagicAIChatHost',
-        setup() {
-            provide('request', opt.request)
-            provide('constants', opt.constants)
-            provide('Message', opt.Message)
-            provide('bus', opt.bus)
-            provide('i18n.format', opt.i18n.format)
-            return () => h(MagicAIChat)
-        }
-    })
-}
-
 export default (opt) => {
-    const i18n = opt.i18n
+    const { i18n, bus, request, modal } = opt
+
+    // 注册 i18n
     i18n.add('zh-cn', localZhCN)
     i18n.add('en', localEn)
+
+    // 将 bus 挂到 window，以便 panel 组件使用
+    window.magicEditorBus = bus
+
+    // 注册快捷键 Ctrl+Shift+A
+    document.addEventListener('keydown', (e) => {
+        if (e.ctrlKey && e.shiftKey && e.key === 'A') {
+            e.preventDefault()
+            bus.$emit('ai-dialog-open')
+        }
+    })
+
     return {
-        resource: [{
+        datasources: [{
+            type: 'ai',
+            icon: 'ai',
+            title: i18n.format('ai.title'),
+            name: i18n.format('ai.name'),
+            onClick: () => bus.$emit('ai-dialog-open'),
+            component: MagicAiDialog
+        }, {
             type: 'schema',
-            icon: 'datasource',
-            title: 'schema.name',
-            service: MagicSchema(opt.bus, opt.constants, opt.i18n.format, opt.Message, opt.request)
-        }],
-        // type 省略 => 始终显示在底部工具条
-        toolbars: [{
-            id: 'magic-ai-chat',
-            title: 'ai.title',
-            icon: '#magic-ai-ai',
-            component: wrapChat(opt)
+            embed: true,
+            component: MagicSchemaPanel
         }]
     }
 }

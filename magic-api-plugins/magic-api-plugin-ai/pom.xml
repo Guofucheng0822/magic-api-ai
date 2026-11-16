@@ -11,7 +11,7 @@
     <artifactId>magic-api-plugin-ai</artifactId>
     <packaging>jar</packaging>
     <name>magic-api-plugin-ai</name>
-    <description>AI chat plugin for generating Magic-API interfaces via LLM</description>
+    <description>magic-api-plugin-ai</description>
     <dependencies>
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -20,17 +20,18 @@
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-configuration-processor</artifactId>
-            <optional>true</optional>
+            <artifactId>spring-boot-starter-data-redis</artifactId>
+            <scope>provided</scope>
         </dependency>
         <dependency>
-            <groupId>com.alibaba</groupId>
-            <artifactId>fastjson</artifactId>
-            <scope>provided</scope>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-configuration-processor</artifactId>
+            <optional>true</optional>
         </dependency>
     </dependencies>
     <build>
         <plugins>
+            <!-- npm install && npm run build -->
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>exec-maven-plugin</artifactId>
@@ -67,6 +68,8 @@
                     </execution>
                 </executions>
             </plugin>
+
+
             <plugin>
                 <artifactId>maven-resources-plugin</artifactId>
                 <version>3.2.0</version>

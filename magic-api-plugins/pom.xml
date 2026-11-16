@@ -19,6 +19,9 @@
         <module>magic-api-plugin-swagger</module>
         <module>magic-api-plugin-springdoc</module>
         <module>magic-api-plugin-redis</module>
+        <module>magic-api-plugin-clickhouse</module>
+        <module>magic-api-plugin-doris</module>
+        <module>magic-api-plugin-selectdb</module>
         <module>magic-api-plugin-mongo</module>
         <module>magic-api-plugin-elasticsearch</module>
         <module>magic-api-plugin-cluster</module>
